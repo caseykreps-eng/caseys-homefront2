@@ -1,0 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+:root {
+  --background: #fff0f8;
+  --foreground: #171717;
+  --accent: #ff2a85;
+}
+
+.dark {
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+  --accent: #ff69b4;
+}
+
+body {
+  font-family: 'Fredoka', system-ui, sans-serif;
+  background-color: var(--background);
+  color: var(--foreground);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Girly Glows */
+.glow-pink {
+  box-shadow: 0 0 25px #ff2a85, 0 0 50px #ff69b4;
+  animation: pulse-pink 2s infinite ease-in-out;
+}
+
+.glow-teal {
+  box-shadow: 0 0 25px #67e8f9, 0 0 50px #22d3ee;
+  animation: pulse-teal 2s infinite ease-in-out;
+}
+
+.glow-purple {
+  box-shadow: 0 0 25px #c084fc, 0 0 50px #a855f7;
+  animation: pulse-purple 2s infinite ease-in-out;
+}
+
+@keyframes pulse-pink { 0%, 100% { box-shadow: 0 0 15px #ff2a85; } 50% { box-shadow: 0 0 35px #ff69b4; } }
+@keyframes pulse-teal { 0%, 100% { box-shadow: 0 0 15px #67e8f9; } 50% { box-shadow: 0 0 35px #22d3ee; } }
+@keyframes pulse-purple { 0%, 100% { box-shadow: 0 0 15px #c084fc; } 50% { box-shadow: 0 0 35px #a855f7; } }
+
+/* Sparkle */
+@keyframes sparkle {
+  0%, 100% { opacity: 0.7; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+.sparkle { animation: sparkle 1.6s infinite ease-in-out; }
+
+/* Leaflet Popups */
+.bubbly-popup .leaflet-popup-content-wrapper {
+  background: #ffffff !important;
+  color: #171717 !important;
+  border: 4px solid #ff2a85 !important;
+  border-radius: 20px !important;
+  box-shadow: 0 10px 30px rgba(255, 42, 133, 0.3) !important;
+}
+
+.dark .bubbly-popup .leaflet-popup-content-wrapper {
+  background: #1e2937 !important;
+  color: #f1f5f9 !important;
+  border-color: #ff69b4 !important;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #ff2a85; border-radius: 20px; }
+.dark ::-webkit-scrollbar-thumb { background: #ff69b4; }
