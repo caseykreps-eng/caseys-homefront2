@@ -8,7 +8,7 @@ import type { IntelNode } from '../../../hooks/useLiveData';
 const TacticalMap = dynamic(() => import('../../../components/TacticalMap'), { ssr: false });
 
 export default function ThreatIntelligencePage() {
-  const { events } = useLiveData();
+  const { events, fires = [], webcams = [] } = useLiveData();
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [isDarkMap, setIsDarkMap] = useState(false);
 
@@ -20,7 +20,7 @@ export default function ThreatIntelligencePage() {
             Threat Intelligence Map
           </h1>
           <p className="text-xs text-pink-600 dark:text-pink-400 font-mono mt-1 uppercase tracking-widest">
-            LIVE CONFLICT & WATCH LAYERS
+            LIVE CONFLICT · WATCH LAYERS · WEBCAMS
           </p>
         </div>
 
@@ -34,8 +34,11 @@ export default function ThreatIntelligencePage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-160px)]">
         <div className="lg:col-span-3 rounded-3xl overflow-hidden border border-pink-200">
-          <TacticalMap 
+          <TacticalMap
             events={events}
+            fires={fires}
+            webcams={webcams}
+            visibleLayers={['conflict', 'fires', 'webcams']}
             selectedEventId={selectedEventId}
             onSelectNode={(e: IntelNode) => setSelectedEventId(e.id)}
             isDarkMap={isDarkMap}

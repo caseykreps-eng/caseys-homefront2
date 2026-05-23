@@ -29,7 +29,7 @@ const navItems = [
   { name: 'Business Intel', href: '/dashboard/business', icon: Building2 },
   { name: 'Judicial Intel', href: '/dashboard/judicial', icon: Scale },
   { name: 'News Feed', href: '/dashboard/feed', icon: Newspaper },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+  { name: 'Tools', href: '/dashboard/settings', icon: Settings },
 ];
 
 export default function Sidebar() {
