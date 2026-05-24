@@ -42,6 +42,7 @@ export default forwardRef<any, any>(({
   militaryFlights = [],
   fires = [],
   webcams = [],
+  ucdpEvents = [],
   visibleLayers = ['naval', 'military'],
   selectedEventId = null,
   onSelectNode,
@@ -49,11 +50,50 @@ export default forwardRef<any, any>(({
 }, ref) => {
 
   const [mapStyle, setMapStyle] = useState<MapStyle>(isDarkMap ? 'dark' : 'light');
+  const [showSentinel, setShowSentinel] = useState(false);
+  const [sentinelOpacity, setSentinelOpacity] = useState(0.65);
   const [showNaval, setShowNaval] = useState(visibleLayers.includes('naval'));
   const [showMilitary, setShowMilitary] = useState(visibleLayers.includes('military'));
   const [showConflict, setShowConflict] = useState(visibleLayers.includes('conflict'));
   const [showFires, setShowFires] = useState(visibleLayers.includes('fires'));
   const [showWebcams, setShowWebcams] = useState(visibleLayers.includes('webcams'));
+  const [showUcdp, setShowUcdp] = useState(ucdpEvents.length > 0);
+
+  // Overpass infra layers — fetched on demand when toggled on
+  type InfraLayer = 'power' | 'military' | 'telecoms' | 'ports';
+  const INFRA_LAYERS: { id: InfraLayer; label: string; emoji: string; color: string }[] = [
+    { id: 'power',    label: 'Power',    emoji: '⚡', color: 'bg-yellow-600' },
+    { id: 'military', label: 'Bases',    emoji: '🪖', color: 'bg-olive-600 bg-lime-800' },
+    { id: 'telecoms', label: 'Telecoms', emoji: '📡', color: 'bg-blue-600' },
+    { id: 'ports',    label: 'Ports',    emoji: '🚢', color: 'bg-sky-700' },
+  ];
+  const [infraOn, setInfraOn] = useState<Record<InfraLayer, boolean>>({
+    power: false, military: false, telecoms: false, ports: false,
+  });
+  const [infraData, setInfraData] = useState<Record<InfraLayer, any[]>>({
+    power: [], military: [], telecoms: [], ports: [],
+  });
+  const [infraLoading, setInfraLoading] = useState<Record<InfraLayer, boolean>>({
+    power: false, military: false, telecoms: false, ports: false,
+  });
+
+  const toggleInfra = useCallback(async (layer: InfraLayer) => {
+    const next = !infraOn[layer];
+    setInfraOn(prev => ({ ...prev, [layer]: next }));
+    if (next && infraData[layer].length === 0 && !infraLoading[layer]) {
+      setInfraLoading(prev => ({ ...prev, [layer]: true }));
+      try {
+        // Default bbox covers Middle East + Eastern Europe
+        const res = await fetch(
+          `/api/overpass?layer=${layer}&south=20&west=20&north=58&east=70`
+        );
+        const json = await res.json();
+        setInfraData(prev => ({ ...prev, [layer]: json.features ?? [] }));
+      } catch { /* silent */ } finally {
+        setInfraLoading(prev => ({ ...prev, [layer]: false }));
+      }
+    }
+  }, [infraOn, infraData, infraLoading]);
 
   // Aviationstack on-demand route lookup — keyed by callsign
   const [routeDetails, setRouteDetails] = useState<Record<string, any>>({});
@@ -75,6 +115,7 @@ export default forwardRef<any, any>(({
   const validEvents   = useMemo(() => events.filter((e: any) => e?.lat && !isNaN(e.lat) && e?.lon && !isNaN(e.lon)), [events]);
   const validFires    = useMemo(() => fires.filter((f: any) => f?.lat && !isNaN(f.lat) && f?.lon && !isNaN(f.lon)), [fires]);
   const validWebcams  = useMemo(() => webcams.filter((w: any) => w?.lat && !isNaN(w.lat) && w?.lon && !isNaN(w.lon)), [webcams]);
+  const validUcdp     = useMemo(() => ucdpEvents.filter((e: any) => e?.lat && !isNaN(e.lat) && e?.lon && !isNaN(e.lon)), [ucdpEvents]);
 
   const hasConflictLayer = visibleLayers.includes('conflict') || events.length > 0;
   const hasFiresLayer    = visibleLayers.includes('fires') || fires.length > 0;
@@ -90,6 +131,18 @@ export default forwardRef<any, any>(({
           zoomOffset={-1}
           attribution={MAPBOX_ATTRIBUTION}
         />
+
+        {/* Sentinel-2 cloudless overlay — ESA/Copernicus via EOX IT Services, free */}
+        {showSentinel && (
+          <TileLayer
+            key={`sentinel-${sentinelOpacity}`}
+            url="https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg"
+            opacity={sentinelOpacity}
+            tileSize={256}
+            zoomOffset={0}
+            attribution='<a href="https://s2maps.eu">Sentinel-2 cloudless</a> by <a href="https://eox.at">EOX IT Services GmbH</a> (CC BY 4.0)'
+          />
+        )}
 
         {showNaval && validNaval.map((e: any) => (
           <Marker key={e.id} position={[e.lat, e.lon]} icon={createCleanIcon('⚓', 26)} eventHandlers={{ click: () => onSelectNode?.(e) }}>
@@ -198,6 +251,51 @@ export default forwardRef<any, any>(({
           </Marker>
         ))}
 
+        {/* UCDP conflict events */}
+        {showUcdp && validUcdp.map((e: any) => {
+          const deathColor = e.deaths > 50 ? '🔴' : e.deaths > 10 ? '🟠' : '🟡';
+          return (
+            <Marker key={e.id} position={[e.lat, e.lon]} icon={createCleanIcon(deathColor, 16)} eventHandlers={{ click: () => onSelectNode?.(e) }}>
+              <Popup className="bubbly-popup" minWidth={230}>
+                <div className="font-bold text-red-700 text-sm leading-tight">{e.event}</div>
+                <div className="text-xs text-slate-500 mt-0.5">📍 {e.region}</div>
+                {e.actor && <div className="text-xs text-slate-600 mt-1">Actors: {e.actor}</div>}
+                <div className="text-xs font-semibold text-red-600 mt-1.5">
+                  ☠️ {e.deaths} estimated deaths
+                  {e.deathsLow !== e.deathsHigh && ` (${e.deathsLow}–${e.deathsHigh})`}
+                </div>
+                {e.deathsCivilian > 0 && (
+                  <div className="text-xs text-orange-500">👤 {e.deathsCivilian} civilian casualties</div>
+                )}
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded">{e.eventType}</span>
+                  <span className="text-xs text-slate-400">{e.date}</span>
+                  <span className="text-xs text-slate-400">UCDP GED</span>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
+
+        {/* Overpass infrastructure layers */}
+        {INFRA_LAYERS.map(({ id, emoji }) =>
+          infraOn[id] && infraData[id].map((f: any) => (
+            <Marker key={f.id} position={[f.lat, f.lon]} icon={createCleanIcon(emoji, 16)}>
+              <Popup className="bubbly-popup" minWidth={180}>
+                <div className="font-bold text-slate-700 text-sm">{f.name}</div>
+                <div className="text-xs text-slate-500 mt-0.5">{f.tags?.type}</div>
+                {f.tags?.operator && <div className="text-xs text-slate-400">Operator: {f.tags.operator}</div>}
+                {f.tags?.voltage  && <div className="text-xs text-slate-400">Voltage: {f.tags.voltage}</div>}
+                {f.tags?.wikidata && (
+                  <a href={`https://www.wikidata.org/wiki/${f.tags.wikidata}`} target="_blank" rel="noopener noreferrer"
+                    className="text-xs text-blue-500 underline mt-1 inline-block">Wikidata ↗</a>
+                )}
+                <div className="text-xs text-slate-400 mt-1">OpenStreetMap</div>
+              </Popup>
+            </Marker>
+          ))
+        )}
+
         {showWebcams && validWebcams.map((w: any) => (
           <Marker key={w.id} position={[w.lat, w.lon]} icon={createCleanIcon('📷', 18)}>
             <Popup className="bubbly-popup" minWidth={220}>
@@ -248,6 +346,40 @@ export default forwardRef<any, any>(({
             </button>
           ))}
         </div>
+
+        {/* Sentinel-2 overlay */}
+        <div className="border border-emerald-700/50 bg-emerald-950/40 rounded-xl px-2 py-1.5">
+          <button
+            onClick={() => setShowSentinel(!showSentinel)}
+            className={`w-full px-2 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              showSentinel ? 'text-emerald-300' : 'text-slate-400 hover:text-emerald-400'
+            }`}
+          >
+            <span className="text-base leading-none">🌍</span>
+            <span>Sentinel-2</span>
+            <span className={`ml-auto text-xs px-1.5 rounded font-bold ${showSentinel ? 'bg-emerald-700 text-emerald-100' : 'bg-slate-700 text-slate-400'}`}>
+              {showSentinel ? 'ON' : 'OFF'}
+            </span>
+          </button>
+          {showSentinel && (
+            <div className="px-1 pb-1 pt-0.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-slate-500 w-6">{Math.round(sentinelOpacity * 100)}%</span>
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  step="5"
+                  value={Math.round(sentinelOpacity * 100)}
+                  onChange={e => setSentinelOpacity(Number(e.target.value) / 100)}
+                  className="flex-1 h-1.5 accent-emerald-500"
+                />
+              </div>
+              <p className="text-xs text-slate-600 mt-0.5 leading-tight">ESA 2020 cloudless mosaic</p>
+            </div>
+          )}
+        </div>
+
         <div className="border-t border-slate-200 dark:border-slate-700 mb-1" />
         {(visibleLayers.includes('naval') || showNaval) && (
           <button onClick={() => setShowNaval(!showNaval)} className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 ${showNaval ? 'bg-teal-500 text-white' : 'bg-slate-100 dark:bg-slate-800'}`}>
@@ -274,6 +406,28 @@ export default forwardRef<any, any>(({
             📷 Webcams {showWebcams ? 'ON' : 'OFF'} {validWebcams.length > 0 ? `(${validWebcams.length})` : ''}
           </button>
         )}
+        {validUcdp.length > 0 && (
+          <button onClick={() => setShowUcdp(!showUcdp)} className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 ${showUcdp ? 'bg-rose-700 text-white' : 'bg-slate-100 dark:bg-slate-800'}`}>
+            ☠️ UCDP {showUcdp ? 'ON' : 'OFF'} ({validUcdp.length})
+          </button>
+        )}
+
+        {/* Infrastructure layers — on-demand from Overpass */}
+        <div className="border-t border-slate-200 dark:border-slate-700 mt-1 pt-1">
+          <div className="text-xs text-slate-400 px-1 mb-1 font-semibold">INFRA (OSM)</div>
+          {INFRA_LAYERS.map(({ id, label, emoji, color }) => (
+            <button
+              key={id}
+              onClick={() => toggleInfra(id)}
+              className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 w-full transition-all ${
+                infraOn[id] ? `${color} text-white` : 'bg-slate-100 dark:bg-slate-800'
+              }`}
+            >
+              {emoji} {label}
+              {infraLoading[id] ? ' …' : infraOn[id] ? ` ON (${infraData[id].length})` : ' OFF'}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

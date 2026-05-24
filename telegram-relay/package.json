@@ -1,0 +1,17 @@
+{
+  "name": "telegram-relay",
+  "version": "1.0.0",
+  "description": "MTProto relay — streams Telegram channel messages to a local HTTP endpoint",
+  "main": "relay.js",
+  "scripts": {
+    "start": "node relay.js",
+    "setup": "node setup.js"
+  },
+  "dependencies": {
+    "telegram": "^2.26.22",
+    "input": "^1.0.1",
+    "express": "^4.18.2",
+    "dotenv": "^16.3.1",
+    "lowdb": "^1.0.0"
+  }
+}

@@ -30,7 +30,12 @@ export async function GET(req: NextRequest) {
     if (court) params.set('court', court);
 
     const res = await fetch(`${BASE}/search/?${params}`, {
-      headers: { Accept: 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        ...(process.env.COURTLISTENER_API_KEY
+          ? { Authorization: `Token ${process.env.COURTLISTENER_API_KEY}` }
+          : {}),
+      },
       signal: AbortSignal.timeout(10000),
     });
 

@@ -74,13 +74,13 @@ function relDate(d: string) {
 function P2CViewer({ portal }: { portal: typeof P2C_PORTALS[0] }) {
   const [blocked, setBlocked] = useState(false);
   const [loaded, setLoaded]   = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     setBlocked(false);
     setLoaded(false);
     // If iframe hasn't signalled load within 4 s, assume it's blocked
-    timerRef.current = setTimeout(() => setBlocked(true), 4000);
+    timerRef.current = window.setTimeout(() => setBlocked(true), 4000);
     return () => clearTimeout(timerRef.current);
   }, [portal.url]);
 
